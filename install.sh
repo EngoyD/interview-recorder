@@ -65,7 +65,7 @@ done
 step "Done"
 cat <<'EOF'
 Two things left, both in the README:
-  1. Audio MIDI Setup: create a Multi-Output Device with your headphones and BlackHole 2ch.
+  1. Audio MIDI Setup: create a Multi-Output Device and an "Interview Capture" Aggregate Device.
   2. Optional: a keyboard shortcut to start and stop recording.
 
 Then open a NEW Terminal window, and before a call run:  interview acme
