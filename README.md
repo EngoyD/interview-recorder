@@ -32,11 +32,13 @@ The recorder hears the interviewer through BlackHole. This step sends call audio
 4. Double-click the new device's name in the left list and rename it, for example **AirPods + BlackHole**.
 5. Click your headphones in the left list and note the sample rate under **Format**. Click **BlackHole 2ch** and set it to the same rate. A mismatch makes audio sound choppy.
 
-Then in your call app, set the **speaker** to the device you just made. In Google Meet that's ⚙ Settings → Audio → Speakers. Leave the microphone alone.
+Then in your call app (in Google Meet: ⚙ Settings → Audio):
+- Set the **speaker** to the device you just made.
+- Set the **microphone** to your Mac's built-in mic, for example MacBook Air Microphone. Don't use your headphones' mic: with Bluetooth headphones like AirPods, using their mic drops them into low-quality call mode and everything sounds scratchy.
 
 If you use more than one pair of headphones, make a Multi-Output Device for each.
 
-The recorder records your voice from the Mac's current input (System Settings → Sound → Input). Keep that set to the same mic your call app uses.
+The recorder picks your Mac's built-in mic on its own.
 
 ## 3. Record
 
@@ -75,7 +77,9 @@ After an interview, start a chat, attach the `transcript.md`, and say "debrief t
 
 **"No speech on the Interviewer side."** The call app's speaker wasn't set to your Multi-Output Device, or your headphones weren't ticked in it. Check step 2. If you plugged in different headphones mid-call, the call app may have switched to them directly.
 
-**"No speech on the Me side."** Open System Settings → Privacy & Security → Microphone and turn on Terminal, Shortcuts, and ffmpeg if they're listed. Also check System Settings → Sound → Input.
+**"No speech on the Me side."** Open System Settings → Privacy & Security → Microphone and turn on Terminal, Shortcuts, and ffmpeg if they're listed.
+
+**Scratchy audio in Bluetooth headphones.** Something is using the headphones' mic. Set your call app's microphone to the Mac's built-in mic (step 2). If you set a mic in `mic.txt`, make sure it isn't the headphones.
 
 **Choppy audio while recording.** A sample-rate mismatch. In Audio MIDI Setup, set your headphones, BlackHole 2ch, and the Multi-Output Device to the same rate.
 
@@ -87,9 +91,9 @@ After an interview, start a chat, attach the `transcript.md`, and say "debrief t
 
 **Volume keys don't work.** macOS often won't change the volume of a Multi-Output Device. Set the volume in the call app or on your headphones.
 
-**Using a specific mic.** By default the recorder uses whatever input macOS has selected. To always use one mic, list the names with `ffmpeg -f avfoundation -list_devices true -i ""`, then save the one you want, for example:
+**Using a specific mic.** The recorder uses your Mac's built-in mic, or the input selected in System Settings → Sound on Macs without one. To use a different mic, such as a USB mic, list the names with `ffmpeg -f avfoundation -list_devices true -i ""`, then save the one you want, for example:
 ```bash
-echo "MacBook Air Microphone" > ~/interviews/mic.txt
+echo "Blue Yeti" > ~/interviews/mic.txt
 ```
 Delete `mic.txt` to go back to the default.
 

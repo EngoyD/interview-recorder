@@ -8,6 +8,7 @@
 import fcntl
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -20,14 +21,13 @@ ROOT = Path.home() / "interviews"
 MODEL = ROOT / "models" / "ggml-large-v3-turbo.bin"
 VAD = ROOT / "models" / "ggml-silero-v6.2.0.bin"
 PIDFILE = ROOT / ".recording.pid"
-# Each side is recorded from its own device into its own file. To pin a specific mic instead of the system
-# default input, put its name in ~/interviews/mic.txt (list names: ffmpeg -f avfoundation -list_devices true -i "").
+# Each side is recorded from its own device into its own file. To pick the mic yourself, put its name in
+# ~/interviews/mic.txt (list names: ffmpeg -f avfoundation -list_devices true -i "").
 MIC_FILE = ROOT / "mic.txt"
-MIC = (MIC_FILE.read_text().strip() if MIC_FILE.exists() else "") or "default"
 CALL = "BlackHole 2ch"
-SIDES = {  # speaker: (input device, raw file, filter applied before transcription)
-    "Me": (MIC, "mic.wav", "dynaudnorm"),
-    "Interviewer": (CALL, "call.wav", "anull"),
+SIDES = {  # speaker: (raw file, filter applied before transcription)
+    "Me": ("mic.wav", "dynaudnorm"),
+    "Interviewer": ("call.wav", "anull"),
 }
 HINT = {"Me": "that Terminal, Shortcuts and ffmpeg have microphone access",
         "Interviewer": "that your call app's speaker is set to your Multi-Output device"}
@@ -44,12 +44,24 @@ def new_folder(name):
     return out
 
 
+def pick_mic():
+    if MIC_FILE.exists() and MIC_FILE.read_text().strip():
+        return MIC_FILE.read_text().strip()
+    # Prefer the Mac's own mic: opening a Bluetooth headset's mic drops the headphones into scratchy call-quality audio.
+    listing = subprocess.run(["ffmpeg", "-hide_banner", "-f", "avfoundation", "-list_devices", "true", "-i", ""],
+                             capture_output=True, text=True).stderr
+    builtin = re.search(r"\] \[\d+\] ((?:MacBook|iMac)[^\n]*Microphone)\s*$", listing, re.M)
+    return builtin.group(1) if builtin else "default"
+
+
 def record(out, background=False):
+    mic = pick_mic()
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin" if background else "-stats"]
-    for device, _, _ in SIDES.values():
+    for device in (mic, CALL):
         cmd += ["-thread_queue_size", "1024", "-f", "avfoundation", "-i", f":{device}"]
-    for i, (_, raw, _) in enumerate(SIDES.values()):
+    for i, (raw, _) in enumerate(SIDES.values()):
         cmd += ["-map", f"{i}:a", "-ac", "1", str(out / raw)]
+    print(f"Mic: {mic}")
     proc = subprocess.Popen(cmd)
     if background:
         PIDFILE.write_text(str(proc.pid))
@@ -62,7 +74,7 @@ def record(out, background=False):
     finally:
         if background:
             PIDFILE.unlink(missing_ok=True)
-    for _, raw, _ in SIDES.values():
+    for raw, _ in SIDES.values():
         f = out / raw
         if not f.exists() or f.stat().st_size < 100_000:
             sys.exit(f"Recording failed or too short: {f}")
@@ -73,16 +85,23 @@ def record(out, background=False):
             notify(msg)
 
 
+def duration(path):
+    return float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
+                                 str(path)], capture_output=True, text=True, check=True).stdout)
+
+
 def transcribe(out):
     segments, warnings = [], []
-    for who, (_, raw, af) in SIDES.items():
+    lengths = {who: duration(out / raw) for who, (raw, _) in SIDES.items()}
+    for who, (raw, af) in SIDES.items():
+        shift = round((max(lengths.values()) - lengths[who]) * 1000)  # both stop together; the shorter one started late
         wav = out / f"{who}.16k.wav"
         subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
                         "-i", str(out / raw), "-af", af, "-ar", "16000", "-ac", "1", str(wav)], check=True)
         subprocess.run(["whisper-cli", "-m", str(MODEL), "--vad", "-vm", str(VAD), "-l", "en",
                         "-np", "-oj", "-of", str(out / who), "-f", str(wav)], check=True)
         data = json.loads((out / f"{who}.json").read_bytes().decode("utf-8", "replace"), strict=False)
-        found = [(s["offsets"]["from"], who, s["text"].strip())
+        found = [(s["offsets"]["from"] + shift, who, s["text"].strip())
                  for s in data["transcription"] if s["text"].strip()]
         if not found:
             warnings.append(f"No speech on the {who} side. Check {HINT[who]}.")
@@ -163,7 +182,7 @@ def main():
         return background(Path(sys.argv[2]))
 
     arg = sys.argv[1]
-    raw = SIDES["Me"][1]
+    raw = SIDES["Me"][0]
     out = next((p for p in (Path(arg).expanduser(), ROOT / arg) if (p / raw).exists()), None)
     if out is None:
         out = new_folder(arg)
