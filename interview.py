@@ -95,6 +95,9 @@ def transcribe(out):
     lengths = {who: duration(out / raw) for who, (raw, _) in SIDES.items()}
     for who, (raw, af) in SIDES.items():
         shift = round((max(lengths.values()) - lengths[who]) * 1000)  # both stop together; the shorter one started late
+        if shift > 3000:  # too big for a late start: this side dropped out mid-call, so its start time is right as is
+            print(f"WARNING: the {who} track is {shift / 1000:.0f}s shorter than the other; it may have cut out.")
+            shift = 0
         wav = out / f"{who}.16k.wav"
         subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
                         "-i", str(out / raw), "-af", af, "-ar", "16000", "-ac", "1", str(wav)], check=True)
@@ -151,7 +154,7 @@ def toggle():
         with open(out / "log.txt", "w") as log:
             subprocess.Popen([sys.executable, __file__, "--bg", str(out)], start_new_session=True,
                              stdin=subprocess.DEVNULL, stdout=log, stderr=log)
-        for _ in range(50):  # hold the lock until ffmpeg is up and the pid file is written
+        for _ in range(100):  # hold the lock until ffmpeg is up and the pid file is written
             if running_pid():
                 break
             time.sleep(0.1)
