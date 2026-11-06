@@ -11,7 +11,7 @@ Turns a transcript from the `interview` recorder into coaching the user can act 
 - If a transcript.md is attached, use it.
 - Otherwise, if you can reach ~/interviews on the user's Mac, pick the folder they name ("acme" matches `*_acme`), or the newest folder if they don't name one. If you can't reach it, ask them to attach transcript.md from that folder.
 - Lines look like `**[MM:SS] Me:** ...` and `**[MM:SS] Interviewer:** ...`. Whisper drops most "um" and "uh", so don't score filler words.
-- If one side is missing or nearly empty, say so first. The recording setup failed and a debrief would be one-sided.
+- If one side is missing or nearly empty, the whole debrief is one line saying which side is missing and that the user should check the Troubleshooting section of the recorder's README. Don't guess at causes.
 - If the user shares the job description or their resume, use them. Don't hold the debrief waiting for either.
 
 ## Debrief
