@@ -80,6 +80,12 @@ The installer saved `~/interviews/interview-debrief.zip`. In Claude, go to **Cus
 
 After an interview, start a chat, attach the `transcript.md`, and say "debrief this." Attach the job description or your resume too and the feedback gets more specific. You get a grade for each answer, rewrites of the weak ones, and a list of habits to work on.
 
+### Automatic debriefs with Claude Code
+
+If [Claude Code](https://code.claude.com/docs/en/setup) is installed and signed in on your Mac, you can skip the chat. After each transcript, the recorder hands it to Claude and saves `debrief.md` in the same folder. With the keyboard shortcut you get a "Debrief ready" notification. Claude reads the transcript only, not the audio, and the debrief counts toward your Claude plan's usage.
+
+To make the feedback specific to you, save your resume or a list of your strengths as `~/interviews/about-me.md`. The debrief uses it to point out moments where you could have brought those up. It also reads your last three debriefs and tells you whether the habits it flagged are improving.
+
 ## Troubleshooting
 
 **"No speech on the Interviewer side."** The call app's speaker wasn't set to your Multi-Output Device, or your headphones weren't ticked in it. Check step 2. If you plugged in different headphones mid-call, the call app may have switched to them directly.

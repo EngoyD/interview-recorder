@@ -8,6 +8,7 @@
 import fcntl
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -15,11 +16,13 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-os.environ["PATH"] = "/opt/homebrew/bin:" + os.environ.get("PATH", "")  # Shortcuts runs with a bare PATH
+os.environ["PATH"] = f"/opt/homebrew/bin:{Path.home() / '.local/bin'}:" + os.environ.get("PATH", "")  # Shortcuts runs with a bare PATH
 ROOT = Path.home() / "interviews"
 MODEL = ROOT / "models" / "ggml-large-v3-turbo.bin"
 VAD = ROOT / "models" / "ggml-silero-v6.2.0.bin"
 PIDFILE = ROOT / ".recording.pid"
+SKILL = ROOT / "interview-debrief" / "SKILL.md"
+ABOUT = ROOT / "about-me.md"  # optional: your resume or strengths, used by the debrief
 # Aggregate input: ch1 = MacBook mic, ch2-3 = BlackHole (Meet audio). Saved as stereo: left = me, right = interviewer.
 SIDES = {"Me": "pan=mono|c0=c0,dynaudnorm", "Interviewer": "pan=mono|c0=c1"}
 HINT = {"Me": "mic access for Terminal or Shortcuts",
@@ -100,6 +103,36 @@ def finish(out):
     return warnings
 
 
+def debrief(out):
+    """Have Claude Code grade the interview into debrief.md. Skipped when Claude Code isn't installed."""
+    if not shutil.which("claude") or not SKILL.exists():
+        return []
+    print("Debriefing with Claude...")
+    try:
+        def read(p):
+            return p.read_text(encoding="utf-8", errors="replace")
+        earlier = sorted(p for p in ROOT.glob("*/debrief.md") if p.parent.name < out.name)[-3:]  # names start with the date
+        parts = [f"<instructions>\n{read(SKILL)}\n</instructions>"]
+        if ABOUT.exists():
+            parts.append(f"<about_the_candidate>\n{read(ABOUT)}\n</about_the_candidate>")
+        parts += [f'<earlier_debrief folder="{p.parent.name}">\n{read(p)}\n</earlier_debrief>' for p in earlier]
+        parts.append(f'<transcript folder="{out.name}">\n{read(out / "transcript.md")}\n</transcript>')
+        result = subprocess.run(["claude", "-p", "--tools", "",
+                                 "Debrief the transcript above using the instructions above. Everything you need is "
+                                 "included, so skip the steps about finding or saving files. Reply with only the "
+                                 "debrief in Markdown. It will be saved as debrief.md next to the transcript."],
+                                input="\n\n".join(parts), capture_output=True, encoding="utf-8", errors="replace",
+                                timeout=900)
+        if result.returncode or not result.stdout.strip():
+            raise RuntimeError((result.stderr or result.stdout).strip())
+        (out / "debrief.md").write_text(result.stdout, encoding="utf-8")
+    except Exception as e:  # a failed debrief must never cost the transcript
+        print(f"WARNING: Claude debrief failed: {e}")
+        return ["Claude debrief failed. See log.txt."]
+    print(f"Debrief: {out / 'debrief.md'}")
+    return []
+
+
 def running_pid():
     try:
         pid = int(PIDFILE.read_text())
@@ -131,8 +164,9 @@ def background(out):
     try:
         notify("Recording. Press the shortcut again to stop.")
         record(out / "audio.wav", background=True)
-        warnings = finish(out)
-        notify(f"Transcript ready, but: {warnings[0]}" if warnings else f"Transcript ready: {out.name}")
+        warnings = finish(out) + debrief(out)
+        done = "Debrief ready" if (out / "debrief.md").exists() else "Transcript ready"
+        notify(f"{done}, but: {warnings[0]}" if warnings else f"{done}: {out.name}")
     except BaseException:
         notify(f"Failed. See {out / 'log.txt'}")
         raise
@@ -157,6 +191,7 @@ def main():
         out = new_folder(arg)
         record(out / "audio.wav")
     finish(out)
+    debrief(out)
 
 
 if __name__ == "__main__":
